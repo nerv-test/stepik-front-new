@@ -1,0 +1,199 @@
+/* eslint-disable sonarjs/no-duplicate-string */
+import { mount as _mount } from '@vue/test-utils';
+import Vue from 'vue';
+import Router from 'vue-router';
+import { createRouterLayout } from '@/app/utils/layout';
+
+
+Vue.use(Router);
+
+const layouts = {
+  default: {
+    template: '<div>Default <router-view/></div>',
+  },
+
+  foo: {
+    template: '<div>Foo <router-view/></div>',
+  },
+
+  bar: {
+    template: '<div>Bar <router-view/></div>',
+  },
+};
+
+const RouterLayout = createRouterLayout(layout => Promise.resolve(layouts[layout]));
+
+async function mount(children) {
+  const router = new Router({
+    mode: 'abstract',
+    routes: [
+      {
+        path: '/',
+        component: RouterLayout,
+        children,
+      },
+    ],
+  });
+
+  const Root = Vue.extend({
+    template: '<router-view/>',
+  });
+
+  const wrapper = _mount(Root, {
+    router,
+  });
+  router.push('/');
+  await wrapper.vm.$nextTick();
+  return wrapper;
+}
+
+describe('RouterLayout component', () => {
+  it('shows default layout', async () => {
+    const Comp = {
+      template: '<p>component</p>',
+    };
+
+    const wrapper = await mount([
+      {
+        path: '',
+        component: Comp,
+      },
+    ]);
+    expect(wrapper.html()).toMatchSnapshot();
+  });
+
+  it('shows named layout', async () => {
+    const Comp = {
+      layout: 'foo',
+      template: '<p>component</p>',
+    };
+
+    const wrapper = await mount([
+      {
+        path: '',
+        component: Comp,
+      },
+    ]);
+    expect(wrapper.html()).toMatchSnapshot();
+  });
+
+  it("uses the leaf component's layout option", async () => {
+    const Test1 = {
+      layout: 'foo',
+      template: '<div>Test1 <router-view/></div>',
+    };
+
+    const Test2 = {
+      layout: 'bar',
+      template: '<p>Test2</p>',
+    };
+
+    const wrapper = await mount([
+      {
+        path: '',
+        component: Test1,
+        children: [
+          {
+            path: '',
+            component: Test2,
+          },
+        ],
+      },
+    ]);
+    expect(wrapper.html()).toMatchSnapshot();
+  });
+
+  it('updates layout when route is changed', async () => {
+    const Test1 = {
+      layout: 'foo',
+      template: '<p>Test1</p>',
+    };
+
+    const Test2 = {
+      layout: 'bar',
+      template: '<p>Test2</p>',
+    };
+
+    const wrapper = await mount([
+      {
+        path: '',
+        component: Test1,
+      },
+      {
+        path: 'test',
+        component: Test2,
+      },
+    ]);
+    wrapper.vm.$router.push('/test');
+    await wrapper.vm.$nextTick();
+    expect(wrapper.html()).toMatchSnapshot();
+  });
+
+  it('works with component constructor', async () => {
+    const Test1 = Vue.extend({
+      layout: 'foo',
+      template: '<p>Test1</p>',
+    });
+
+    const Test2 = Vue.extend({
+      template: '<p>Test2</p>',
+    });
+
+    const wrapper = await mount([
+      {
+        path: '',
+        component: Test1,
+      },
+      {
+        path: 'test',
+        component: Test2,
+      },
+    ]);
+    expect(wrapper.html()).toMatchSnapshot();
+    wrapper.vm.$router.push('/test');
+    await wrapper.vm.$nextTick();
+    expect(wrapper.html()).toMatchSnapshot();
+  });
+
+  it('works with async component', async (done) => {
+    const Test1 = () => Promise.resolve({
+      layout: 'foo',
+      template: '<p>Test1</p>',
+    });
+
+    const Test2 = () => new Promise((resolve) => {
+      setTimeout(() => {
+        resolve({
+          layout: 'bar',
+          template: '<p>Test2</p>',
+        });
+      }, 100);
+    });
+
+    const wrapper = await mount([
+      {
+        path: '',
+        component: Test1,
+      },
+      {
+        path: 'test',
+        component: Test2,
+      },
+    ]);
+
+    // Foo - Test1
+    expect(wrapper.html()).toMatchSnapshot();
+
+    wrapper.vm.$router.push('/test');
+
+    // Foo - Test1 (Should not change layout until the async component is resolved)
+    await wrapper.vm.$nextTick();
+    expect(wrapper.html()).toMatchSnapshot();
+
+    setTimeout(() => {
+      // Bar - Test2 (Should update layout after async component is resolved)
+      expect(wrapper.html()).toMatchSnapshot();
+      done();
+    }, 200);
+  });
+});

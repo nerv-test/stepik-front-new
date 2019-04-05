@@ -1,0 +1,6 @@
+/api/*  https://stepikold.inerv.dev/api/:splat  200
+/static/*  https://stepikold.inerv.dev/static/:splat  200
+/media/*  https://stepikold.inerv.dev/media/:splat  200
+/djangoadmin/*  https://stepikold.inerv.dev/djangoadmin/:splat  200
+
+/*    /index.html   200
